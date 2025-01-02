@@ -9,6 +9,10 @@ branding:
 
 # Define your inputs here.
 inputs:
+  status:
+    description: 'Deployment status'
+    default: 'success'
+    required: true
   teams_webhook:
     description: 'Microsoft Teams webhook URL'
     required: true
