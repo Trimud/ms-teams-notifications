@@ -5,7 +5,26 @@ import * as exec from '@actions/exec'
 export async function run(): Promise<void> {
   try {
     // Input from workflow
+    const status =
+      core.getInput('status', { required: true }).toLowerCase() || 'success'
     const teamsWebhook = core.getInput('teams_webhook', { required: true })
+
+    // Construct different cards based on the status
+    let cardTitle = '**Deployment Successful** ✅'
+    let cardColor = '#28a745' // Green for success
+    let cardDetails = 'The deployment completed successfully.'
+
+    if (status === 'failure') {
+      cardTitle = '**Deployment Failed** ❌'
+      cardColor = '#d73a49' // Red for failure
+      cardDetails =
+        'The deployment encountered errors. Please check the logs for details.'
+    } else if (status === 'warning') {
+      cardTitle = '**Deployment Warning** ⚠️'
+      cardColor = '#ffc107' // Yellow for warnings
+      cardDetails =
+        'The deployment completed with warnings. Review the logs for more information.'
+    }
 
     // Retrieve repository and branch information from GitHub context
     const { owner, repo } = github.context.repo
@@ -74,44 +93,13 @@ export async function run(): Promise<void> {
                 type: 'TextBlock',
                 size: 'medium',
                 weight: 'bolder',
-                text: `**Deployment Notification** on [${repository}](https://github.com/${repository})`
+                text: `${cardTitle} on [${repository}](https://github.com/${repository})`,
+                color: cardColor
               },
               {
-                type: 'ColumnSet',
-                columns: [
-                  {
-                    type: 'Column',
-                    items: [
-                      {
-                        type: 'TextBlock',
-                        weight: 'bolder',
-                        text: '✅',
-                        wrap: true,
-                        size: 'extraLarge'
-                      }
-                    ],
-                    width: 'auto'
-                  },
-                  {
-                    type: 'Column',
-                    items: [
-                      {
-                        type: 'TextBlock',
-                        weight: 'bolder',
-                        text: 'Successful Deployment',
-                        wrap: true
-                      },
-                      {
-                        type: 'TextBlock',
-                        spacing: 'none',
-                        text: `by [${actor}](https://github.com/${actor}) on ${datetime}`,
-                        isSubtle: true,
-                        wrap: true
-                      }
-                    ],
-                    width: 'stretch'
-                  }
-                ]
+                type: 'TextBlock',
+                text: `${cardDetails} Ran by [${actor}](https://github.com/${actor}) on ${datetime}.`,
+                wrap: true
               },
               {
                 type: 'FactSet',
@@ -132,7 +120,7 @@ export async function run(): Promise<void> {
               {
                 id: 'viewStatus',
                 type: 'Action.OpenUrl',
-                title: 'View build/deploy status',
+                title: 'View Deployment Logs',
                 url: workflowUrl
               },
               {
