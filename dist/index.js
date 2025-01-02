@@ -30046,13 +30046,7 @@ async function run() {
                                             {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
-                                                // text: `${cardDetails} Ran by [${actor}](https://github.com/${actor}) on ${"${formatDateTime(datetime, 'dd.MM.yyyy HH:mm')}"}`,
-                                                text: cardDetails +
-                                                    'Ran by [' +
-                                                    actor +
-                                                    '](https://github.com/' +
-                                                    actor +
-                                                    ") on ${formatDateTime(datetime, 'dd.MM.yyyy HH:mm')}",
+                                                text: `by [${github.context.actor}](https://github.com/${github.context.actor}) on {{DATE(${datetime}, SHORT)}} at {{TIME(${datetime})}}`,
                                                 isSubtle: true,
                                                 wrap: true
                                             }
