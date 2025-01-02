@@ -30046,7 +30046,7 @@ async function run() {
                                             {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
-                                                text: `${cardDetails} Ran by [${actor}](https://github.com/${actor}) on ${'${formatDateTime(' + datetime + ", 'dd.MM.yyyy HH:mm')}"}`,
+                                                text: `${cardDetails} Ran by [${actor}](https://github.com/${actor}) on ${"${formatDateTime(datetime, 'dd.MM.yyyy HH:mm')}"}`,
                                                 isSubtle: true,
                                                 wrap: true
                                             }
