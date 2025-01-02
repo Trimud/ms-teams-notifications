@@ -1,21 +1,24 @@
 /**
  * Unit tests for the action's main functionality, src/main.ts
- *
- * These should be run as if the action was called from a workflow.
- * Specifically, the inputs listed in `action.yml` should be set as environment
- * variables following the pattern `INPUT_<INPUT_NAME>`.
  */
 
-import * as core from '@actions/core'
 import * as main from '../src/main'
+import * as core from '@actions/core'
+import * as exec from '@actions/exec'
 
-// Mock the action's main function
-const runMock = jest.spyOn(main, 'run')
+jest.mock('@actions/core')
+jest.mock('@actions/exec')
+jest.mock('@actions/github', () => ({
+  context: {
+    repo: { owner: 'mock-owner', repo: 'mock-repo' },
+    ref: 'refs/heads/main',
+    actor: 'mock-actor',
+    sha: 'mock-sha',
+    runId: 1234
+  }
+}))
 
-// Other utilities
-const timeRegex = /^\d{2}:\d{2}:\d{2}/
-
-// Mock the GitHub Actions core library
+// Mock GitHub Actions core library functions
 let debugMock: jest.SpiedFunction<typeof core.debug>
 let errorMock: jest.SpiedFunction<typeof core.error>
 let getInputMock: jest.SpiedFunction<typeof core.getInput>
@@ -33,57 +36,117 @@ describe('action', () => {
     setOutputMock = jest.spyOn(core, 'setOutput').mockImplementation()
   })
 
-  it('sets the time output', async () => {
-    // Set the action's inputs as return values from core.getInput()
+  it('sends an adaptive card to Microsoft Teams successfully', async () => {
+    // Mock inputs
     getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return '500'
-        default:
-          return ''
-      }
+      if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
+      return ''
     })
 
-    await main.run()
-    expect(runMock).toHaveReturned()
+    // Mock exec calls
+    jest
+      .spyOn(exec, 'exec')
+      .mockImplementation(async (command, args, options) => {
+        if (command === 'git' && (args ?? []).includes('log')) {
+          options?.listeners?.stdout?.(Buffer.from('Mock commit message\n'))
+        } else if (command === 'git' && (args ?? []).includes('diff-tree')) {
+          options?.listeners?.stdout?.(Buffer.from('file1.txt\nfile2.js\n'))
+        }
+        return 0
+      })
 
-    // Verify that all of the core library functions were called correctly
-    expect(debugMock).toHaveBeenNthCalledWith(1, 'Waiting 500 milliseconds ...')
-    expect(debugMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringMatching(timeRegex)
+    // Mock fetch
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200
+    }) as jest.Mock
+
+    // Run the action
+    await main.run()
+
+    // Assertions
+    expect(exec.exec).toHaveBeenCalledWith(
+      'git',
+      ['log', '-1', '--pretty=%B'],
+      expect.anything()
     )
-    expect(debugMock).toHaveBeenNthCalledWith(
-      3,
-      expect.stringMatching(timeRegex)
+    expect(exec.exec).toHaveBeenCalledWith(
+      'git',
+      ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
+      expect.anything()
     )
-    expect(setOutputMock).toHaveBeenNthCalledWith(
-      1,
-      'time',
-      expect.stringMatching(timeRegex)
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://mock-teams-webhook-url',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.any(String)
+      })
     )
-    expect(errorMock).not.toHaveBeenCalled()
+    expect(setFailedMock).not.toHaveBeenCalled()
   })
 
-  it('sets a failed status', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation(name => {
-      switch (name) {
-        case 'milliseconds':
-          return 'this is not a number'
-        default:
-          return ''
-      }
+  it('fails if the fetch response is not OK', async () => {
+    getInputMock.mockReturnValue('https://mock-teams-webhook-url')
+
+    // Mock fetch failure
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: jest.fn().mockResolvedValue('Internal Server Error')
     })
 
     await main.run()
-    expect(runMock).toHaveReturned()
 
-    // Verify that all of the core library functions were called correctly
-    expect(setFailedMock).toHaveBeenNthCalledWith(
-      1,
-      'milliseconds not a number'
+    // Assertions
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'Failed to send notification. HTTP 500: Internal Server Error'
     )
-    expect(errorMock).not.toHaveBeenCalled()
+  })
+
+  it('fails if git command fails', async () => {
+    getInputMock.mockReturnValue('https://mock-teams-webhook-url')
+
+    // Mock exec failure
+    jest.spyOn(exec, 'exec').mockImplementation(() => {
+      throw new Error('Git command failed')
+    })
+
+    await main.run()
+
+    // Assertions
+    expect(setFailedMock).toHaveBeenCalledWith('Git command failed')
+  })
+
+  it('handles cases where no files were changed', async () => {
+    getInputMock.mockReturnValue('https://mock-teams-webhook-url')
+
+    // Mock exec to simulate no changed files
+    jest
+      .spyOn(exec, 'exec')
+      .mockImplementation(async (command, args, options) => {
+        if (command === 'git' && (args ?? []).includes('log')) {
+          options?.listeners?.stdout?.(Buffer.from('Mock commit message\n'))
+        } else if (command === 'git' && (args ?? []).includes('diff-tree')) {
+          options?.listeners?.stdout?.(Buffer.from('')) // No changed files
+        }
+        return 0
+      })
+
+    // Mock fetch
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200
+    }) as jest.Mock
+
+    await main.run()
+
+    // Assertions
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://mock-teams-webhook-url',
+      expect.objectContaining({
+        body: expect.stringContaining('No files changed.')
+      })
+    )
   })
 })

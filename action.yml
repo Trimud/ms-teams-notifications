@@ -1,23 +1,22 @@
-name: 'The name of your action here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'MS Teams Deployment Notification'
+description: 'Sends a deployment notification to MS Teams using Adaptive Cards'
+author: 'Yuriy Boev'
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: 'heart'
-  color: 'red'
+  icon: 'message-circle'
+  color: 'purple'
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
+  teams_webhook:
+    description: 'Microsoft Teams webhook URL'
     required: true
-    default: '1000'
 
 # Define your outputs here.
-outputs:
-  time:
-    description: 'Your output description here'
+# outputs:
+#   time:
+#     description: 'Your output description here'
 
 runs:
   using: node20

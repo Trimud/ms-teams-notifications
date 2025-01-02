@@ -1,26 +1,170 @@
 import * as core from '@actions/core'
-import { wait } from './wait'
+import * as github from '@actions/github'
+import * as exec from '@actions/exec'
 
-/**
- * The main function for the action.
- * @returns {Promise<void>} Resolves when the action is complete.
- */
 export async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
+    // Input from workflow
+    const teamsWebhook = core.getInput('teams_webhook', { required: true })
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    // Retrieve repository and branch information from GitHub context
+    const { owner, repo } = github.context.repo
+    const repository = `${owner}/${repo}`
+    const ref = github.context.ref // e.g., refs/heads/main
+    const branch = ref.replace('refs/heads/', '')
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    // Retrieve actor and commit SHA from GitHub context
+    const actor = github.context.actor
+    const commitSha = github.context.sha
+    const workflowUrl = `https://github.com/${repository}/actions/runs/${github.context.runId}`
+    const commitDiffUrl = `https://github.com/${repository}/commit/${commitSha}`
 
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
-  } catch (error) {
-    // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    // Fetch the latest commit message
+    let commitMessage = ''
+    await exec.exec('git', ['log', '-1', '--pretty=%B'], {
+      listeners: {
+        stdout: (data: Buffer) => {
+          commitMessage += data.toString()
+        }
+      }
+    })
+    commitMessage = commitMessage.trim()
+
+    // Get the list of changed files
+    let changedFilesOutput = ''
+    await exec.exec(
+      'git',
+      ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
+      {
+        listeners: {
+          stdout: (data: Buffer) => {
+            changedFilesOutput += data.toString()
+          }
+        }
+      }
+    )
+
+    const changedFiles = changedFilesOutput
+      .split('\n')
+      .filter(file => file)
+      .map(
+        file =>
+          `* [${file}](https://github.com/${repository}/blob/${branch}/${file})`
+      )
+      .join('\n')
+
+    // Get the current date and time
+    const datetime = new Date().toISOString()
+
+    // Construct the Adaptive Card JSON
+    const adaptiveCard = {
+      type: 'message',
+      attachments: [
+        {
+          contentType: 'application/vnd.microsoft.card.adaptive',
+          content: {
+            type: 'AdaptiveCard',
+            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+            version: '1.5',
+            msteams: {
+              width: 'Full'
+            },
+            body: [
+              {
+                type: 'TextBlock',
+                size: 'medium',
+                weight: 'bolder',
+                text: `**Deployment Notification** on [${repository}](https://github.com/${repository})`
+              },
+              {
+                type: 'ColumnSet',
+                columns: [
+                  {
+                    type: 'Column',
+                    items: [
+                      {
+                        type: 'TextBlock',
+                        weight: 'bolder',
+                        text: '✅',
+                        wrap: true,
+                        size: 'extraLarge'
+                      }
+                    ],
+                    width: 'auto'
+                  },
+                  {
+                    type: 'Column',
+                    items: [
+                      {
+                        type: 'TextBlock',
+                        weight: 'bolder',
+                        text: 'Successful Deployment',
+                        wrap: true
+                      },
+                      {
+                        type: 'TextBlock',
+                        spacing: 'none',
+                        text: `by [${actor}](https://github.com/${actor}) on ${datetime}`,
+                        isSubtle: true,
+                        wrap: true
+                      }
+                    ],
+                    width: 'stretch'
+                  }
+                ]
+              },
+              {
+                type: 'FactSet',
+                facts: [
+                  { title: 'Commit message:', value: commitMessage },
+                  {
+                    title: 'Repository & branch:',
+                    value: `[${branch}](https://github.com/${repository}/tree/${branch})`
+                  },
+                  {
+                    title: 'Files changed:',
+                    value: changedFiles || 'No files changed.'
+                  }
+                ]
+              }
+            ],
+            actions: [
+              {
+                id: 'viewStatus',
+                type: 'Action.OpenUrl',
+                title: 'View build/deploy status',
+                url: workflowUrl
+              },
+              {
+                id: 'reviewDiffs',
+                type: 'Action.OpenUrl',
+                title: 'View commit diffs',
+                url: commitDiffUrl
+              }
+            ]
+          }
+        }
+      ]
+    }
+
+    // Send the Adaptive Card to Microsoft Teams
+    const response = await fetch(teamsWebhook, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(adaptiveCard)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `Failed to send notification. HTTP ${response.status}: ${errorText}`
+      )
+    }
+
+    core.info('Notification sent to Microsoft Teams successfully.')
+  } catch (error: any) {
+    core.setFailed(`${error.message}`)
   }
 }
