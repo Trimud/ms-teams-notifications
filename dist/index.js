@@ -30046,7 +30046,7 @@ async function run() {
                                             {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
-                                                text: `by [${github.context.actor}](https://github.com/${github.context.actor}) on {{DATE(${datetime}, SHORT)}} at {{TIME(${datetime})}}`,
+                                                text: `by [${github.context.actor}](https://github.com/${github.context.actor}) on on ${datetime}`,
                                                 isSubtle: true,
                                                 wrap: true
                                             }
