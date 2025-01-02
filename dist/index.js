@@ -29952,8 +29952,7 @@ async function run() {
         const ref = github.context.ref; // e.g., refs/heads/main
         const branch = ref.replace('refs/heads/', '');
         // Retrieve actor and commit SHA from GitHub context
-        const actor = github.context.actor;
-        const commitSha = github.context.sha;
+        const { actor, sha: commitSha } = github.context;
         const workflowUrl = `https://github.com/${repository}/actions/runs/${github.context.runId}`;
         const commitDiffUrl = `https://github.com/${repository}/commit/${commitSha}`;
         // Fetch the latest commit message
@@ -30053,14 +30052,14 @@ async function run() {
                                             {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
-                                                text: `Ran by [${github.context.actor}](https://github.com/${github.context.actor})`,
+                                                text: `Ran by [${actor}](https://github.com/${actor})`,
                                                 isSubtle: true,
                                                 wrap: true
                                             },
                                             {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
-                                                text: "${formatDateTime(dateTime, 'dd.MM.yyyy HH:mm')}",
+                                                text: '{{DATE}} {{TIME}}',
                                                 isSubtle: true,
                                                 wrap: true
                                             }
