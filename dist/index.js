@@ -30046,7 +30046,21 @@ async function run() {
                                             {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
-                                                text: `by [${github.context.actor}](https://github.com/${github.context.actor}) on on ${datetime}`,
+                                                text: cardDetails,
+                                                isSubtle: true,
+                                                wrap: true
+                                            },
+                                            {
+                                                type: 'TextBlock',
+                                                spacing: 'none',
+                                                text: `Ran by [${github.context.actor}](https://github.com/${github.context.actor})`,
+                                                isSubtle: true,
+                                                wrap: true
+                                            },
+                                            {
+                                                type: 'TextBlock',
+                                                spacing: 'none',
+                                                text: "${formatDateTime(dateTime, 'dd.MM.yyyy HH:mm')}",
                                                 isSubtle: true,
                                                 wrap: true
                                             }
