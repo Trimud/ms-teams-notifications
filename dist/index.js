@@ -30059,7 +30059,7 @@ async function run() {
                                             {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
-                                                text: '{{DATE}} {{TIME}}',
+                                                text: "{{formatDateTime('utcNow', 'dd.MM.yyyy HH:mm')}}",
                                                 isSubtle: true,
                                                 wrap: true
                                             }
