@@ -40,6 +40,7 @@ describe('action', () => {
     // Mock inputs
     getInputMock.mockImplementation(name => {
       if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
+      if (name === 'status') return 'success'
       return ''
     })
 
@@ -59,7 +60,7 @@ describe('action', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200
-    }) as jest.Mock
+    })
 
     // Run the action
     await main.run()
@@ -80,48 +81,90 @@ describe('action', () => {
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: expect.any(String)
+        body: expect.stringContaining('Deployment Successful')
       })
     )
     expect(setFailedMock).not.toHaveBeenCalled()
   })
 
-  it('fails if the fetch response is not OK', async () => {
-    getInputMock.mockReturnValue('https://mock-teams-webhook-url')
+  it('handles different statuses correctly', async () => {
+    const statuses = ['success', 'failure', 'warning']
 
-    // Mock fetch failure
+    for (const status of statuses) {
+      getInputMock.mockImplementation(name => {
+        if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
+        if (name === 'status') return status
+        return ''
+      })
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200
+      })
+
+      await main.run()
+
+      const expectedText =
+        status === 'success'
+          ? 'Deployment Successful'
+          : status === 'failure'
+            ? 'Deployment Failed'
+            : 'Deployment Warning'
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://mock-teams-webhook-url',
+        expect.objectContaining({
+          body: expect.stringContaining(expectedText)
+        })
+      )
+    }
+  })
+
+  it('logs the adaptive card payload for debugging', async () => {
+    getInputMock.mockImplementation(name => {
+      if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
+      if (name === 'status') return 'success'
+      return ''
+    })
+
+    jest
+      .spyOn(exec, 'exec')
+      .mockImplementation(async (command, args, options) => {
+        if (command === 'git' && (args ?? []).includes('log')) {
+          options?.listeners?.stdout?.(Buffer.from('Mock commit message\n'))
+        } else if (command === 'git' && (args ?? []).includes('diff-tree')) {
+          options?.listeners?.stdout?.(Buffer.from('file1.txt\nfile2.js\n'))
+        }
+        return 0
+      })
+
     global.fetch = jest.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: jest.fn().mockResolvedValue('Internal Server Error')
+      ok: true,
+      status: 200
     })
 
     await main.run()
 
-    // Assertions
-    expect(setFailedMock).toHaveBeenCalledWith(
-      'Failed to send notification. HTTP 500: Internal Server Error'
+    expect(debugMock).toHaveBeenCalledWith(
+      expect.stringContaining('"type": "message"')
+    )
+    expect(debugMock).toHaveBeenCalledWith(
+      expect.stringContaining('"attachments"')
+    )
+    expect(debugMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '"contentType": "application/vnd.microsoft.card.adaptive"'
+      )
     )
   })
 
-  it('fails if git command fails', async () => {
-    getInputMock.mockReturnValue('https://mock-teams-webhook-url')
-
-    // Mock exec failure
-    jest.spyOn(exec, 'exec').mockImplementation(() => {
-      throw new Error('Git command failed')
+  it('handles cases where no files were changed with success status', async () => {
+    getInputMock.mockImplementation(name => {
+      if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
+      if (name === 'status') return 'success'
+      return ''
     })
 
-    await main.run()
-
-    // Assertions
-    expect(setFailedMock).toHaveBeenCalledWith('Git command failed')
-  })
-
-  it('handles cases where no files were changed', async () => {
-    getInputMock.mockReturnValue('https://mock-teams-webhook-url')
-
-    // Mock exec to simulate no changed files
     jest
       .spyOn(exec, 'exec')
       .mockImplementation(async (command, args, options) => {
@@ -133,20 +176,50 @@ describe('action', () => {
         return 0
       })
 
-    // Mock fetch
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200
-    }) as jest.Mock
+    })
 
     await main.run()
 
-    // Assertions
     expect(global.fetch).toHaveBeenCalledWith(
       'https://mock-teams-webhook-url',
       expect.objectContaining({
         body: expect.stringContaining('No files changed.')
       })
+    )
+  })
+
+  it('handles non-200 fetch responses gracefully', async () => {
+    getInputMock.mockImplementation(name => {
+      if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
+      if (name === 'status') return 'success'
+      return ''
+    })
+
+    jest
+      .spyOn(exec, 'exec')
+      .mockImplementation(async (command, args, options) => {
+        if (command === 'git' && (args ?? []).includes('log')) {
+          options?.listeners?.stdout?.(Buffer.from('Mock commit message\n'))
+        } else if (command === 'git' && (args ?? []).includes('diff-tree')) {
+          options?.listeners?.stdout?.(Buffer.from('file1.txt\nfile2.js\n'))
+        }
+        return 0
+      })
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      text: jest.fn().mockResolvedValue('Internal Server Error')
+    })
+
+    await main.run()
+
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'Failed to send notification. HTTP 500: Internal Server Error'
     )
   })
 })

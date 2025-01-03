@@ -5,8 +5,7 @@ import * as exec from '@actions/exec'
 export async function run(): Promise<void> {
   try {
     // Input from workflow
-    const status =
-      core.getInput('status', { required: true }).toLowerCase() || 'success'
+    const status = core.getInput('status', { required: true }).toLowerCase()
     const teamsWebhook = core.getInput('teams_webhook', { required: true })
 
     // Retrieve repository and branch information from GitHub context
