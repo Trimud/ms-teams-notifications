@@ -16,8 +16,7 @@ export async function run(): Promise<void> {
     const branch = ref.replace('refs/heads/', '')
 
     // Retrieve actor and commit SHA from GitHub context
-    const actor = github.context.actor
-    const commitSha = github.context.sha
+    const { actor, sha: commitSha } = github.context
     const workflowUrl = `https://github.com/${repository}/actions/runs/${github.context.runId}`
     const commitDiffUrl = `https://github.com/${repository}/commit/${commitSha}`
 
@@ -54,9 +53,6 @@ export async function run(): Promise<void> {
           `* [${file}](https://github.com/${repository}/blob/${branch}/${file})`
       )
       .join('\n')
-
-    // Get the current date and time
-    const datetime = new Date().toISOString()
 
     // Construct different cards based on the status
     let cardTitle = '**Deployment Successful**'
@@ -123,7 +119,14 @@ export async function run(): Promise<void> {
                       {
                         type: 'TextBlock',
                         spacing: 'none',
-                        text: `${cardDetails} Ran by [${actor}](https://github.com/${actor}) on ${'${formatDateTime(' + datetime + ", 'dd.MM.yyyy HH:mm')}"}`,
+                        text: cardDetails,
+                        isSubtle: true,
+                        wrap: true
+                      },
+                      {
+                        type: 'TextBlock',
+                        spacing: 'none',
+                        text: `Ran by [${actor}](https://github.com/${actor})`,
                         isSubtle: true,
                         wrap: true
                       }

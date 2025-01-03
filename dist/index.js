@@ -29979,8 +29979,6 @@ async function run() {
             .filter(file => file)
             .map(file => `* [${file}](https://github.com/${repository}/blob/${branch}/${file})`)
             .join('\n');
-        // Get the current date and time
-        const datetime = new Date().toISOString();
         // Construct different cards based on the status
         let cardTitle = '**Deployment Successful**';
         let cardIcon = '✅';
@@ -30053,13 +30051,6 @@ async function run() {
                                                 type: 'TextBlock',
                                                 spacing: 'none',
                                                 text: `Ran by [${actor}](https://github.com/${actor})`,
-                                                isSubtle: true,
-                                                wrap: true
-                                            },
-                                            {
-                                                type: 'TextBlock',
-                                                spacing: 'none',
-                                                text: "{{formatDateTime('utcNow', 'dd.MM.yyyy HH:mm')}}",
                                                 isSubtle: true,
                                                 wrap: true
                                             }
