@@ -72,7 +72,8 @@ export async function run(): Promise<void> {
     }
 
     // Construct the Adaptive Card JSON
-    const adaptiveCard = {
+    // TODO: Replace any with a more specific Adaptive Card type
+    const adaptiveCard: any = {
       type: 'message',
       attachments: [
         {
@@ -134,20 +135,6 @@ export async function run(): Promise<void> {
                     width: 'stretch'
                   }
                 ]
-              },
-              {
-                type: 'FactSet',
-                facts: [
-                  { title: 'Commit message:', value: commitMessage },
-                  {
-                    title: 'Branch:',
-                    value: `[${branch}](https://github.com/${repository}/tree/${branch})`
-                  },
-                  {
-                    title: 'Files changed:',
-                    value: changedFiles || 'No files changed.'
-                  }
-                ]
               }
             ],
             actions: [
@@ -169,6 +156,25 @@ export async function run(): Promise<void> {
       ]
     }
 
+    if (status === 'success') {
+      const factSetData = {
+        type: 'FactSet',
+        facts: [
+          { title: 'Commit message:', value: commitMessage },
+          {
+            title: 'Branch:',
+            value: `[${branch}](https://github.com/${repository}/tree/${branch})`
+          },
+          {
+            title: 'Files changed:',
+            value: changedFiles || 'No files changed.'
+          }
+        ]
+      }
+
+      adaptiveCard.attachments[0].content.body.push(factSetData)
+    }
+
     core.debug(JSON.stringify(adaptiveCard, null, 2))
 
     // Send the Adaptive Card to Microsoft Teams
@@ -188,7 +194,8 @@ export async function run(): Promise<void> {
     }
 
     core.info('Notification sent to Microsoft Teams successfully.')
-  } catch (error: any) {
-    core.setFailed(`${error.message}`)
+  } catch (error) {
+    // Fail the workflow run if an error occurs
+    if (error instanceof Error) core.setFailed(error.message)
   }
 }

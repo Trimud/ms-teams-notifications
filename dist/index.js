@@ -29996,6 +29996,7 @@ async function run() {
                 'The deployment completed with warnings. Review the logs for more information.';
         }
         // Construct the Adaptive Card JSON
+        // TODO: Replace any with a more specific Adaptive Card type
         const adaptiveCard = {
             type: 'message',
             attachments: [
@@ -30058,20 +30059,6 @@ async function run() {
                                         width: 'stretch'
                                     }
                                 ]
-                            },
-                            {
-                                type: 'FactSet',
-                                facts: [
-                                    { title: 'Commit message:', value: commitMessage },
-                                    {
-                                        title: 'Branch:',
-                                        value: `[${branch}](https://github.com/${repository}/tree/${branch})`
-                                    },
-                                    {
-                                        title: 'Files changed:',
-                                        value: changedFiles || 'No files changed.'
-                                    }
-                                ]
                             }
                         ],
                         actions: [
@@ -30092,6 +30079,23 @@ async function run() {
                 }
             ]
         };
+        if (status === 'success') {
+            const factSetData = {
+                type: 'FactSet',
+                facts: [
+                    { title: 'Commit message:', value: commitMessage },
+                    {
+                        title: 'Branch:',
+                        value: `[${branch}](https://github.com/${repository}/tree/${branch})`
+                    },
+                    {
+                        title: 'Files changed:',
+                        value: changedFiles || 'No files changed.'
+                    }
+                ]
+            };
+            adaptiveCard.attachments[0].content.body.push(factSetData);
+        }
         core.debug(JSON.stringify(adaptiveCard, null, 2));
         // Send the Adaptive Card to Microsoft Teams
         const response = await fetch(teamsWebhook, {
@@ -30108,7 +30112,9 @@ async function run() {
         core.info('Notification sent to Microsoft Teams successfully.');
     }
     catch (error) {
-        core.setFailed(`${error.message}`);
+        // Fail the workflow run if an error occurs
+        if (error instanceof Error)
+            core.setFailed(error.message);
     }
 }
 
