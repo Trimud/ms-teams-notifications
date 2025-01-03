@@ -30064,7 +30064,7 @@ async function run() {
                                 facts: [
                                     { title: 'Commit message:', value: commitMessage },
                                     {
-                                        title: 'Repository & branch:',
+                                        title: 'Branch:',
                                         value: `[${branch}](https://github.com/${repository}/tree/${branch})`
                                     },
                                     {
@@ -30092,6 +30092,7 @@ async function run() {
                 }
             ]
         };
+        core.debug(JSON.stringify(adaptiveCard, null, 2));
         // Send the Adaptive Card to Microsoft Teams
         const response = await fetch(teamsWebhook, {
             method: 'POST',
