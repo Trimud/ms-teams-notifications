@@ -8,6 +8,9 @@ export async function run(): Promise<void> {
     const status = core.getInput('status', { required: true }).toLowerCase()
     const teamsWebhook = core.getInput('teams_webhook', { required: true })
 
+    core.debug(`Status: ${status}`)
+    core.debug(`Teams Webhook: ${teamsWebhook}`)
+
     // Retrieve repository and branch information from GitHub context
     const { owner, repo } = github.context.repo
     const repository = `${owner}/${repo}`
