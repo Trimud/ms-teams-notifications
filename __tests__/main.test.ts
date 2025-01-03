@@ -87,8 +87,20 @@ describe('action', () => {
     expect(setFailedMock).not.toHaveBeenCalled()
   })
 
+  it('throws an error for invalid job status', async () => {
+    getInputMock.mockImplementation(name => {
+      if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
+      if (name === 'status') return 'invalid' // Invalid status to trigger error
+      return ''
+    })
+
+    await main.run()
+
+    expect(setFailedMock).toHaveBeenCalledWith('Invalid job status: invalid')
+  })
+
   it('handles different statuses correctly', async () => {
-    const statuses = ['success', 'failure', 'warning']
+    const statuses = ['success', 'failure', 'cancelled']
 
     for (const status of statuses) {
       getInputMock.mockImplementation(name => {
@@ -109,7 +121,7 @@ describe('action', () => {
           ? 'Deployment Successful'
           : status === 'failure'
             ? 'Deployment Failed'
-            : 'Deployment Warning'
+            : 'Deployment Cancelled'
 
       expect(global.fetch).toHaveBeenCalledWith(
         'https://mock-teams-webhook-url',

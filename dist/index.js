@@ -29982,20 +29982,28 @@ async function run() {
             .map(file => `* [${file}](https://github.com/${repository}/blob/${branch}/${file})`)
             .join('\n');
         // Construct different cards based on the status
-        let cardTitle = '**Deployment Successful**';
-        let cardIcon = '✅';
-        let cardDetails = 'The deployment completed successfully.';
-        if (status === 'failure') {
-            cardTitle = '**Deployment Failed**';
-            cardIcon = '❌';
-            cardDetails =
-                'The deployment encountered errors. Please check the logs for details.';
-        }
-        else if (status === 'warning') {
-            cardTitle = '**Deployment Warning**';
-            cardIcon = '⚠️';
-            cardDetails =
-                'The deployment completed with warnings. Review the logs for more information.';
+        let cardTitle;
+        let cardIcon;
+        let cardDetails;
+        switch (status) {
+            case 'success':
+                cardTitle = '**Deployment Successful**';
+                cardIcon = '✅';
+                cardDetails = 'The deployment completed successfully.';
+                break;
+            case 'failure':
+                cardTitle = '**Deployment Failed**';
+                cardIcon = '❌';
+                cardDetails =
+                    'The deployment encountered errors. Please check the logs for details.';
+                break;
+            case 'cancelled':
+                cardTitle = '**Deployment Cancelled**';
+                cardIcon = '⚠️';
+                cardDetails = 'The deployment was cancelled.';
+                break;
+            default:
+                throw new Error(`Invalid job status: ${status}`);
         }
         // Construct the Adaptive Card JSON
         // TODO: Replace any with a more specific Adaptive Card type
