@@ -30103,20 +30103,23 @@ async function run() {
             ]
         };
         if (status === 'success') {
-            const factSetData = {
+            let factSetData = {
                 type: 'FactSet',
                 facts: [
                     { title: 'Commit message:', value: commitMessage },
                     {
                         title: 'Branch:',
                         value: `[${branch}](https://github.com/${repository}/tree/${branch})`
-                    },
-                    {
-                        title: 'Files changed:',
-                        value: changedFiles || 'No files changed.'
                     }
                 ]
             };
+            // Add the changed files list to the card only if there are any changed files
+            if (lastSha && changedFiles) {
+                factSetData.facts.push({
+                    title: 'Files changed:',
+                    value: changedFiles
+                });
+            }
             adaptiveCard.attachments[0].content.body.push(factSetData);
         }
         core.debug(JSON.stringify(adaptiveCard, null, 2));
