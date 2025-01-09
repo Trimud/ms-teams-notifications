@@ -29945,8 +29945,12 @@ async function run() {
     try {
         // Input from workflow
         const status = core.getInput('status', { required: true }).toLowerCase();
+        const lastSha = core.getInput('last_sha');
         const teamsWebhook = core.getInput('teams_webhook', { required: true });
         core.debug(`Status: ${status}`);
+        core.debug(`Last SHA: ${lastSha}`);
+        // TODO: Remove
+        core.info(`Last SHA: ${lastSha}`);
         core.debug(`Teams Webhook: ${teamsWebhook}`);
         // Retrieve repository and branch information from GitHub context
         const { owner, repo } = github.context.repo;
@@ -30024,7 +30028,7 @@ async function run() {
                                 type: 'TextBlock',
                                 size: 'medium',
                                 weight: 'bolder',
-                                text: `**Deployment Notification** on [${repository}](https://github.com/${repository})`
+                                text: `${lastSha} **Deployment Notification** on [${repository}](https://github.com/${repository})`
                             },
                             {
                                 type: 'ColumnSet',

@@ -13,6 +13,9 @@ inputs:
     description: 'Deployment status'
     default: 'success'
     required: true
+  last_sha:
+    description: 'Last successful deploy commit SHA'
+    required: false
   teams_webhook:
     description: 'Microsoft Teams webhook URL'
     required: true
