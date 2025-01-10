@@ -10,8 +10,9 @@ This GitHub Action sends a deployment notification to a specified Microsoft Team
 
 ## Inputs
 
-- `status: ${{job.status}}` **Required** The status of the deployment (e.g., success, failure or cancelled).
+- `status: ${{ job.status }}` **Required** The status of the deployment (e.g., success, failure, or cancelled).
 - `teams_webhook: ${{ secrets.MSTEAMS_WEBHOOK }}` **Required** The Microsoft Teams webhook URL to send the notification to.
+- `last_sha: ${{ github.event.before }}` **Optional** The SHA of the last commit (or send the last successful commit) before the current one. This is used to determine the list of changed files. If not provided, the changed files list will not be included in the notification.
 
 ## Usage
 
@@ -37,5 +38,6 @@ jobs:
         with:
           status: ${{ job.status }}
           teams_webhook: ${{ secrets.TEAMS_WEBHOOK }}
+          last_sha: ${{ github.event.before }}
         if: always()
 ```

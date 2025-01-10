@@ -41,7 +41,7 @@ export async function run(): Promise<void> {
       let output = ''
       let error = ''
 
-      const options = {
+      await exec.exec('git', ['diff', '--name-only', lastSha, commitSha], {
         listeners: {
           stdout: (data: Buffer) => {
             output += data.toString()
@@ -50,13 +50,12 @@ export async function run(): Promise<void> {
             error += data.toString()
           }
         }
-      }
+      })
 
-      await exec.exec(
-        'git',
-        ['diff', '--name-only', lastSha, commitSha],
-        options
-      )
+      if (error) {
+        core.setFailed(`Error during git diff: ${error}`)
+        return
+      }
 
       // Create an array and limit the number of files to 10
       // TODO: MAke the number of files an optional input for the job
@@ -196,11 +195,18 @@ export async function run(): Promise<void> {
       }
 
       // Add the changed files list to the card only if there are any changed files
-      if (lastSha && changedFiles) {
-        factSetData.facts.push({
-          title: 'Files changed:',
-          value: changedFiles
-        })
+      if (lastSha) {
+        if (changedFiles) {
+          factSetData.facts.push({
+            title: 'Files changed:',
+            value: changedFiles
+          })
+        } else {
+          factSetData.facts.push({
+            title: 'Files changed:',
+            value: 'No files changed.'
+          })
+        }
       }
 
       adaptiveCard.attachments[0].content.body.push(factSetData)
