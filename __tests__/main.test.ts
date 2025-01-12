@@ -1,3 +1,7 @@
+/**
+ * Unit tests for the action's main functionality, src/main.ts
+ */
+
 import * as main from '../src/main'
 import * as core from '@actions/core'
 import * as exec from '@actions/exec'
@@ -14,6 +18,7 @@ jest.mock('@actions/github', () => ({
   }
 }))
 
+// Mock GitHub Actions core library functions
 let debugMock: jest.SpiedFunction<typeof core.debug>
 let errorMock: jest.SpiedFunction<typeof core.error>
 let getInputMock: jest.SpiedFunction<typeof core.getInput>
@@ -32,6 +37,7 @@ describe('action', () => {
   })
 
   it('sends an adaptive card to Microsoft Teams successfully', async () => {
+    // Mock inputs
     getInputMock.mockImplementation(name => {
       if (name === 'teams_webhook') return 'https://mock-teams-webhook-url'
       if (name === 'status') return 'success'
@@ -54,11 +60,13 @@ describe('action', () => {
         return 0
       })
 
+    // Mock fetch
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200
     })
 
+    // Run the action
     await main.run()
 
     // Ensure the git log command was called
