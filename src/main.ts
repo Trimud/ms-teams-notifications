@@ -6,9 +6,11 @@ export async function run(): Promise<void> {
   try {
     // Input from workflow
     const status = core.getInput('status', { required: true }).toLowerCase()
+    const lastSha = core.getInput('last_sha')
     const teamsWebhook = core.getInput('teams_webhook', { required: true })
 
     core.debug(`Status: ${status}`)
+    core.debug(`Last SHA: ${lastSha}`)
     core.debug(`Teams Webhook: ${teamsWebhook}`)
 
     // Retrieve repository and branch information from GitHub context
@@ -16,6 +18,7 @@ export async function run(): Promise<void> {
     const repository = `${owner}/${repo}`
     const ref = github.context.ref // e.g., refs/heads/main
     const branch = ref.replace('refs/heads/', '')
+    let changedFiles = ''
 
     // Retrieve actor and commit SHA from GitHub context
     const { actor, sha: commitSha } = github.context
@@ -34,27 +37,39 @@ export async function run(): Promise<void> {
     commitMessage = commitMessage.trim()
 
     // Get the list of changed files
-    let changedFilesOutput = ''
-    await exec.exec(
-      'git',
-      ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'],
-      {
+    if (lastSha) {
+      let output = ''
+      let error = ''
+
+      await exec.exec('git', ['diff', '--name-only', lastSha, commitSha], {
         listeners: {
           stdout: (data: Buffer) => {
-            changedFilesOutput += data.toString()
+            output += data.toString()
+          },
+          stderr: (data: Buffer) => {
+            error += data.toString()
           }
         }
-      }
-    )
+      })
 
-    const changedFiles = changedFilesOutput
-      .split('\n')
-      .filter(file => file)
-      .map(
-        file =>
-          `* [${file}](https://github.com/${repository}/blob/${branch}/${file})`
-      )
-      .join('\n')
+      if (error) {
+        core.setFailed(`Error during git diff: ${error}`)
+        return
+      }
+
+      // Create an array and limit the number of files to 10
+      // TODO: MAke the number of files an optional input for the job
+      const changedFilesOutput = output.trim().split('\n').slice(0, 10)
+      core.debug(`Changed Files: ${changedFilesOutput.join(', ')}`)
+
+      changedFiles = changedFilesOutput
+        .filter(file => file)
+        .map(
+          file =>
+            `* [${file}](https://github.com/${repository}/blob/${branch}/${file})`
+        )
+        .join('\n')
+    }
 
     // Construct different cards based on the status
     let cardTitle
@@ -168,19 +183,30 @@ export async function run(): Promise<void> {
     }
 
     if (status === 'success') {
-      const factSetData = {
+      let factSetData = {
         type: 'FactSet',
         facts: [
           { title: 'Commit message:', value: commitMessage },
           {
             title: 'Branch:',
             value: `[${branch}](https://github.com/${repository}/tree/${branch})`
-          },
-          {
-            title: 'Files changed:',
-            value: changedFiles || 'No files changed.'
           }
         ]
+      }
+
+      // Add the changed files list to the card only if there are any changed files
+      if (lastSha) {
+        if (changedFiles) {
+          factSetData.facts.push({
+            title: 'Files changed:',
+            value: changedFiles
+          })
+        } else {
+          factSetData.facts.push({
+            title: 'Files changed:',
+            value: 'No files changed.'
+          })
+        }
       }
 
       adaptiveCard.attachments[0].content.body.push(factSetData)
