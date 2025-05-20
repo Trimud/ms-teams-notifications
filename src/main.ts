@@ -5,13 +5,15 @@ import * as exec from '@actions/exec'
 export async function run(): Promise<void> {
   try {
     // Input from workflow
-    const status = core.getInput('status', { required: true }).toLowerCase()
+    const status = core.getInput('status')?.toLowerCase() || ''
     const lastSha = core.getInput('last_sha')
     const teamsWebhook = core.getInput('teams_webhook', { required: true })
+    const rawCardBodyInput = core.getInput('raw_card_body')
 
     core.debug(`Status: ${status}`)
     core.debug(`Last SHA: ${lastSha}`)
     core.debug(`Teams Webhook: ${teamsWebhook}`)
+    core.debug(`Raw Card Body Input: ${rawCardBodyInput}`)
 
     // Retrieve repository and branch information from GitHub context
     const { owner, repo } = github.context.repo
@@ -71,30 +73,54 @@ export async function run(): Promise<void> {
         .join('\n')
     }
 
-    // Construct different cards based on the status
+    // Construct different cards based on the status or raw input
     let cardTitle
     let cardIcon
     let cardDetails
+    let cardBody
 
-    switch (status) {
-      case 'success':
-        cardTitle = '**Deployment Successful**'
-        cardIcon = '✅'
-        cardDetails = 'The deployment completed successfully.'
-        break
-      case 'failure':
-        cardTitle = '**Deployment Failed**'
-        cardIcon = '❌'
-        cardDetails =
-          'The deployment encountered errors. Please check the logs for details.'
-        break
-      case 'cancelled':
-        cardTitle = '**Deployment Cancelled**'
-        cardIcon = '⚠️'
-        cardDetails = 'The deployment was cancelled.'
-        break
-      default:
-        throw new Error(`Invalid job status: ${status}`)
+    if (rawCardBodyInput && status) {
+      core.setFailed('Provide only one of status or raw_card_body, not both.')
+      return
+    }
+
+    if (rawCardBodyInput) {
+      try {
+        cardBody = JSON.parse(rawCardBodyInput)
+      } catch (e) {
+        core.error(
+          `Invalid JSON in raw_card_body input: ${e instanceof Error ? e.message : String(e)}`
+        )
+        core.setFailed('Invalid JSON in raw_card_body input.')
+        return
+      }
+    } else if (status) {
+      switch (status) {
+        case 'success':
+          cardTitle = '**Deployment Successful**'
+          cardIcon = '✅'
+          cardDetails = 'The deployment completed successfully.'
+          break
+        case 'failure':
+          cardTitle = '**Deployment Failed**'
+          cardIcon = '❌'
+          cardDetails =
+            'The deployment encountered errors. Please check the logs for details.'
+          break
+        case 'cancelled':
+          cardTitle = '**Deployment Cancelled**'
+          cardIcon = '⚠️'
+          cardDetails = 'The deployment was cancelled.'
+          break
+        default:
+          core.setFailed(
+            'Invalid status input. Provide a valid status or raw_card_body.'
+          )
+          return
+      }
+    } else {
+      core.setFailed('You must provide either status or raw_card_body input.')
+      return
     }
 
     // Construct the Adaptive Card JSON
@@ -104,7 +130,7 @@ export async function run(): Promise<void> {
       attachments: [
         {
           contentType: 'application/vnd.microsoft.card.adaptive',
-          content: {
+          content: cardBody ?? {
             type: 'AdaptiveCard',
             $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
             version: '1.5',
@@ -182,7 +208,7 @@ export async function run(): Promise<void> {
       ]
     }
 
-    if (status === 'success') {
+    if (!rawCardBodyInput && status === 'success') {
       let factSetData = {
         type: 'FactSet',
         facts: [

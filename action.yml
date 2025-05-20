@@ -12,13 +12,16 @@ inputs:
   status:
     description: 'Deployment status'
     default: 'success'
-    required: true
+    required: false
   last_sha:
     description: 'Last successful deploy commit SHA'
     required: false
   teams_webhook:
     description: 'Microsoft Teams webhook URL'
     required: true
+  raw_card_body:
+    description: 'RAW MS Teams card'
+    required: false
 
 # Define your outputs here.
 # outputs:
