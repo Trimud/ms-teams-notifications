@@ -11,7 +11,6 @@ branding:
 inputs:
   status:
     description: 'Deployment status'
-    default: 'success'
     required: false
   last_sha:
     description: 'Last successful deploy commit SHA'
