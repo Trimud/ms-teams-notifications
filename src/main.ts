@@ -9,11 +9,13 @@ export async function run(): Promise<void> {
     const lastSha = core.getInput('last_sha')
     const teamsWebhook = core.getInput('teams_webhook', { required: true })
     const rawCardBodyInput = core.getInput('raw_card_body')
+    const rawCardActionsInput = core.getInput('raw_card_actions')
 
     core.debug(`Status: ${status}`)
     core.debug(`Last SHA: ${lastSha}`)
     core.debug(`Teams Webhook: ${teamsWebhook}`)
     core.debug(`Raw Card Body Input: ${rawCardBodyInput}`)
+    core.debug(`Raw Card Actions Input: ${rawCardActionsInput}`)
 
     // Retrieve repository and branch information from GitHub context
     const { owner, repo } = github.context.repo
@@ -189,21 +191,42 @@ export async function run(): Promise<void> {
                 ]
               }
             ],
-            actions: [
-              {
-                id: 'viewStatus',
-                type: 'Action.OpenUrl',
-                title: 'View Deployment Logs',
-                url: workflowUrl
-              },
-              {
-                id: 'reviewDiffs',
-                type: 'Action.OpenUrl',
-                title: 'View commit diffs',
-                url: commitDiffUrl
-              }
-            ]
+            actions: [] // will be set below
           }
+        }
+      ]
+    }
+
+    // Set actions block dynamically if rawCardActionsInput is provided
+    let actionsBlock
+    if (rawCardActionsInput) {
+      try {
+        actionsBlock = JSON.parse(rawCardActionsInput)
+        if (!Array.isArray(actionsBlock)) {
+          throw new Error('raw_card_actions must be a JSON array')
+        }
+      } catch (e) {
+        core.error(
+          `Invalid JSON in raw_card_actions input: ${e instanceof Error ? e.message : String(e)}`
+        )
+        core.setFailed('Invalid JSON in raw_card_actions input.')
+        return
+      }
+      adaptiveCard.attachments[0].content.actions = actionsBlock
+    } else if (!cardBody) {
+      // Only set default actions if not using raw_card_body
+      adaptiveCard.attachments[0].content.actions = [
+        {
+          id: 'viewStatus',
+          type: 'Action.OpenUrl',
+          title: 'View Deployment Logs',
+          url: workflowUrl
+        },
+        {
+          id: 'reviewDiffs',
+          type: 'Action.OpenUrl',
+          title: 'View commit diffs',
+          url: commitDiffUrl
         }
       ]
     }

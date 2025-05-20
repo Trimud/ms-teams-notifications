@@ -20,7 +20,10 @@ inputs:
     description: 'Microsoft Teams webhook URL'
     required: true
   raw_card_body:
-    description: 'RAW MS Teams card'
+    description: 'Raw MS Teams card'
+    required: false
+  raw_card_actions:
+    description: 'RAW MS Teams card actions'
     required: false
 
 # Define your outputs here.
