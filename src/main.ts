@@ -127,72 +127,89 @@ export async function run(): Promise<void> {
 
     // Construct the Adaptive Card JSON
     // TODO: Replace any with a more specific Adaptive Card type
+    // Build the default card content
+    const defaultCardContent: any = {
+      type: 'AdaptiveCard',
+      $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+      version: '1.5',
+      msteams: {
+        width: 'Full'
+      },
+      body: [
+        {
+          type: 'TextBlock',
+          size: 'medium',
+          weight: 'bolder',
+          text: `**Deployment Notification** on [${repository}](https://github.com/${repository})`
+        },
+        {
+          type: 'ColumnSet',
+          columns: [
+            {
+              type: 'Column',
+              items: [
+                {
+                  type: 'TextBlock',
+                  weight: 'bolder',
+                  text: cardIcon,
+                  wrap: true,
+                  size: 'extraLarge'
+                }
+              ],
+              width: 'auto'
+            },
+            {
+              type: 'Column',
+              items: [
+                {
+                  type: 'TextBlock',
+                  weight: 'bolder',
+                  text: cardTitle,
+                  wrap: true
+                },
+                {
+                  type: 'TextBlock',
+                  spacing: 'none',
+                  text: cardDetails,
+                  isSubtle: true,
+                  wrap: true
+                },
+                {
+                  type: 'TextBlock',
+                  spacing: 'none',
+                  text: `Ran by [${actor}](https://github.com/${actor})`,
+                  isSubtle: true,
+                  wrap: true
+                }
+              ],
+              width: 'stretch'
+            }
+          ]
+        }
+      ],
+      actions: [] // will be set below
+    }
+
+    // If rawCardBodyInput is provided, replace the body attribute
+    if (rawCardBodyInput) {
+      try {
+        const parsedBody = JSON.parse(rawCardBodyInput)
+        defaultCardContent.body = parsedBody
+      } catch (e) {
+        core.error(
+          `Invalid JSON in raw_card_body input: ${e instanceof Error ? e.message : String(e)}`
+        )
+        core.setFailed('Invalid JSON in raw_card_body input.')
+        return
+      }
+    }
+
     const adaptiveCard: any = {
       type: 'message',
       attachments: [
         {
           contentType: 'application/vnd.microsoft.card.adaptive',
-          content: cardBody ?? {
-            type: 'AdaptiveCard',
-            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-            version: '1.5',
-            msteams: {
-              width: 'Full'
-            },
-            body: [
-              {
-                type: 'TextBlock',
-                size: 'medium',
-                weight: 'bolder',
-                text: `**Deployment Notification** on [${repository}](https://github.com/${repository})`
-              },
-              {
-                type: 'ColumnSet',
-                columns: [
-                  {
-                    type: 'Column',
-                    items: [
-                      {
-                        type: 'TextBlock',
-                        weight: 'bolder',
-                        text: cardIcon,
-                        wrap: true,
-                        size: 'extraLarge'
-                      }
-                    ],
-                    width: 'auto'
-                  },
-                  {
-                    type: 'Column',
-                    items: [
-                      {
-                        type: 'TextBlock',
-                        weight: 'bolder',
-                        text: cardTitle,
-                        wrap: true
-                      },
-                      {
-                        type: 'TextBlock',
-                        spacing: 'none',
-                        text: cardDetails,
-                        isSubtle: true,
-                        wrap: true
-                      },
-                      {
-                        type: 'TextBlock',
-                        spacing: 'none',
-                        text: `Ran by [${actor}](https://github.com/${actor})`,
-                        isSubtle: true,
-                        wrap: true
-                      }
-                    ],
-                    width: 'stretch'
-                  }
-                ]
-              }
-            ],
-            actions: [] // will be set below
-          }
+          content: defaultCardContent
         }
       ]
     }
@@ -213,7 +230,7 @@ export async function run(): Promise<void> {
         return
       }
       adaptiveCard.attachments[0].content.actions = actionsBlock
-    } else if (!cardBody) {
+    } else if (!rawCardBodyInput) {
       // Only set default actions if not using raw_card_body
       adaptiveCard.attachments[0].content.actions = [
         {
