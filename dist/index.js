@@ -29944,12 +29944,16 @@ const exec = __importStar(__nccwpck_require__(5236));
 async function run() {
     try {
         // Input from workflow
-        const status = core.getInput('status', { required: true }).toLowerCase();
+        const status = core.getInput('status')?.toLowerCase() || '';
         const lastSha = core.getInput('last_sha');
         const teamsWebhook = core.getInput('teams_webhook', { required: true });
+        const rawCardBodyInput = core.getInput('raw_card_body');
+        const rawCardActionsInput = core.getInput('raw_card_actions');
         core.debug(`Status: ${status}`);
         core.debug(`Last SHA: ${lastSha}`);
         core.debug(`Teams Webhook: ${teamsWebhook}`);
+        core.debug(`Raw Card Body Input: ${rawCardBodyInput}`);
+        core.debug(`Raw Card Actions Input: ${rawCardActionsInput}`);
         // Retrieve repository and branch information from GitHub context
         const { owner, repo } = github.context.repo;
         const repository = `${owner}/${repo}`;
@@ -29997,115 +30001,171 @@ async function run() {
                 .map(file => `* [${file}](https://github.com/${repository}/blob/${branch}/${file})`)
                 .join('\n');
         }
-        // Construct different cards based on the status
+        // Construct different cards based on the status or raw input
         let cardTitle;
         let cardIcon;
         let cardDetails;
-        switch (status) {
-            case 'success':
-                cardTitle = '**Deployment Successful**';
-                cardIcon = '✅';
-                cardDetails = 'The deployment completed successfully.';
-                break;
-            case 'failure':
-                cardTitle = '**Deployment Failed**';
-                cardIcon = '❌';
-                cardDetails =
-                    'The deployment encountered errors. Please check the logs for details.';
-                break;
-            case 'cancelled':
-                cardTitle = '**Deployment Cancelled**';
-                cardIcon = '⚠️';
-                cardDetails = 'The deployment was cancelled.';
-                break;
-            default:
-                throw new Error(`Invalid job status: ${status}`);
+        let cardBody;
+        if (rawCardBodyInput && status) {
+            core.setFailed('Provide only one of status or raw_card_body, not both.');
+            return;
+        }
+        if (rawCardBodyInput) {
+            try {
+                cardBody = JSON.parse(rawCardBodyInput);
+            }
+            catch (e) {
+                core.error(`Invalid JSON in raw_card_body input: ${e instanceof Error ? e.message : String(e)}`);
+                core.setFailed('Invalid JSON in raw_card_body input.');
+                return;
+            }
+        }
+        else if (status) {
+            switch (status) {
+                case 'success':
+                    cardTitle = '**Deployment Successful**';
+                    cardIcon = '✅';
+                    cardDetails = 'The deployment completed successfully.';
+                    break;
+                case 'failure':
+                    cardTitle = '**Deployment Failed**';
+                    cardIcon = '❌';
+                    cardDetails =
+                        'The deployment encountered errors. Please check the logs for details.';
+                    break;
+                case 'cancelled':
+                    cardTitle = '**Deployment Cancelled**';
+                    cardIcon = '⚠️';
+                    cardDetails = 'The deployment was cancelled.';
+                    break;
+                default:
+                    core.setFailed('Invalid status input. Provide a valid status or raw_card_body.');
+                    return;
+            }
+        }
+        else {
+            core.setFailed('You must provide either status or raw_card_body input.');
+            return;
         }
         // Construct the Adaptive Card JSON
         // TODO: Replace any with a more specific Adaptive Card type
+        // Build the default card content
+        const defaultCardContent = {
+            type: 'AdaptiveCard',
+            $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+            version: '1.5',
+            msteams: {
+                width: 'Full'
+            },
+            body: [
+                {
+                    type: 'TextBlock',
+                    size: 'medium',
+                    weight: 'bolder',
+                    text: `**Deployment Notification** on [${repository}](https://github.com/${repository})`
+                },
+                {
+                    type: 'ColumnSet',
+                    columns: [
+                        {
+                            type: 'Column',
+                            items: [
+                                {
+                                    type: 'TextBlock',
+                                    weight: 'bolder',
+                                    text: cardIcon,
+                                    wrap: true,
+                                    size: 'extraLarge'
+                                }
+                            ],
+                            width: 'auto'
+                        },
+                        {
+                            type: 'Column',
+                            items: [
+                                {
+                                    type: 'TextBlock',
+                                    weight: 'bolder',
+                                    text: cardTitle,
+                                    wrap: true
+                                },
+                                {
+                                    type: 'TextBlock',
+                                    spacing: 'none',
+                                    text: cardDetails,
+                                    isSubtle: true,
+                                    wrap: true
+                                },
+                                {
+                                    type: 'TextBlock',
+                                    spacing: 'none',
+                                    text: `Ran by [${actor}](https://github.com/${actor})`,
+                                    isSubtle: true,
+                                    wrap: true
+                                }
+                            ],
+                            width: 'stretch'
+                        }
+                    ]
+                }
+            ],
+            actions: [] // will be set below
+        };
+        // If rawCardBodyInput is provided, replace the body attribute
+        if (rawCardBodyInput) {
+            try {
+                const parsedBody = JSON.parse(rawCardBodyInput);
+                defaultCardContent.body = parsedBody;
+            }
+            catch (e) {
+                core.error(`Invalid JSON in raw_card_body input: ${e instanceof Error ? e.message : String(e)}`);
+                core.setFailed('Invalid JSON in raw_card_body input.');
+                return;
+            }
+        }
         const adaptiveCard = {
             type: 'message',
             attachments: [
                 {
                     contentType: 'application/vnd.microsoft.card.adaptive',
-                    content: {
-                        type: 'AdaptiveCard',
-                        $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-                        version: '1.5',
-                        msteams: {
-                            width: 'Full'
-                        },
-                        body: [
-                            {
-                                type: 'TextBlock',
-                                size: 'medium',
-                                weight: 'bolder',
-                                text: `**Deployment Notification** on [${repository}](https://github.com/${repository})`
-                            },
-                            {
-                                type: 'ColumnSet',
-                                columns: [
-                                    {
-                                        type: 'Column',
-                                        items: [
-                                            {
-                                                type: 'TextBlock',
-                                                weight: 'bolder',
-                                                text: cardIcon,
-                                                wrap: true,
-                                                size: 'extraLarge'
-                                            }
-                                        ],
-                                        width: 'auto'
-                                    },
-                                    {
-                                        type: 'Column',
-                                        items: [
-                                            {
-                                                type: 'TextBlock',
-                                                weight: 'bolder',
-                                                text: cardTitle,
-                                                wrap: true
-                                            },
-                                            {
-                                                type: 'TextBlock',
-                                                spacing: 'none',
-                                                text: cardDetails,
-                                                isSubtle: true,
-                                                wrap: true
-                                            },
-                                            {
-                                                type: 'TextBlock',
-                                                spacing: 'none',
-                                                text: `Ran by [${actor}](https://github.com/${actor})`,
-                                                isSubtle: true,
-                                                wrap: true
-                                            }
-                                        ],
-                                        width: 'stretch'
-                                    }
-                                ]
-                            }
-                        ],
-                        actions: [
-                            {
-                                id: 'viewStatus',
-                                type: 'Action.OpenUrl',
-                                title: 'View Deployment Logs',
-                                url: workflowUrl
-                            },
-                            {
-                                id: 'reviewDiffs',
-                                type: 'Action.OpenUrl',
-                                title: 'View commit diffs',
-                                url: commitDiffUrl
-                            }
-                        ]
-                    }
+                    content: defaultCardContent
                 }
             ]
         };
-        if (status === 'success') {
+        // Set actions block dynamically if rawCardActionsInput is provided
+        let actionsBlock;
+        if (rawCardActionsInput) {
+            try {
+                actionsBlock = JSON.parse(rawCardActionsInput);
+                if (!Array.isArray(actionsBlock)) {
+                    throw new Error('raw_card_actions must be a JSON array');
+                }
+            }
+            catch (e) {
+                core.error(`Invalid JSON in raw_card_actions input: ${e instanceof Error ? e.message : String(e)}`);
+                core.setFailed('Invalid JSON in raw_card_actions input.');
+                return;
+            }
+            adaptiveCard.attachments[0].content.actions = actionsBlock;
+        }
+        else if (!rawCardBodyInput) {
+            // Only set default actions if not using raw_card_body
+            adaptiveCard.attachments[0].content.actions = [
+                {
+                    id: 'viewStatus',
+                    type: 'Action.OpenUrl',
+                    title: 'View Deployment Logs',
+                    url: workflowUrl
+                },
+                {
+                    id: 'reviewDiffs',
+                    type: 'Action.OpenUrl',
+                    title: 'View commit diffs',
+                    url: commitDiffUrl
+                }
+            ];
+        }
+        if (!rawCardBodyInput && status === 'success') {
             let factSetData = {
                 type: 'FactSet',
                 facts: [
